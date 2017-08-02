@@ -1,0 +1,887 @@
+LwzMap && LwzMap.plugins.add("animate",function(){
+		//函数本体
+		
+		var carImages = "images/nj_run_right.png";
+		var carSymbol = function(){ return new esri.symbol.PictureMarkerSymbol(carImages ,60,60); };
+		var createPoint = function( Xy ){ esri.Graphic(); };
+	
+		return function(){
+			
+			var self = this;
+		
+			var map = undefined;
+			
+			/*移动是扩大的地图范围*/
+			var extend = null;
+			
+			/*车子的时速是多少*/
+			var Speed = "";
+			
+			var Interval = function(handle,speed){
+				
+				if(!is.Function(handle)) throw "Interval handle is't Function ";
+				
+				speed = speed  || 1000;
+				
+				var Inter = function(){ return setInterval(handle,speed); }
+								
+				var Interval = Inter();
+				
+				var clearInter = function(){ return clearInterval(Interval); Interval = null; }
+				
+				var refresh = function(_handle,_speed){
+					
+					clearInter();/*关闭掉当前的循环*/
+					
+					if(_handle && is.Function(_handle)) handle = _handle;
+					
+					speed = _speed*1  || speed || 1000;
+					
+					Interval = Inter();/*从新定义循环*/
+					
+				}
+				
+				var dispost = function(){
+					
+					refresh = null;
+					clearInter = null;
+					Interval = null;
+					Inter = null;
+					
+				}
+				
+				return {
+					Interval : function(){ return Interval; },
+					clear : function(){ return clearInter(); },
+					refresh : function(){ return refresh(); } ,
+					dispost : function(){ return dispost(); }
+				};
+		
+			};
+			
+			var Timeout = function(handle,speed,param){
+			
+				if(!is.Function(handle)) throw "Timeout handle is't Function ";
+				
+				speed = speed  || 1000;
+				
+				var Time = function(){ return setTimeout(handle,speed); }
+								
+				var Timeout = Time();
+				
+				var clearTime = function(){ return clearTimeout(Timeout); Timeout = null; }
+				
+				var refresh = function(){
+					
+					clearTime();/*关闭掉当前的循环*/
+					Timeout = Time();/*从新定义循环*/
+					
+				}
+				
+				return {
+					Timeout : Timeout,
+					clear : clearTime,
+					refresh : refresh,
+				};
+			}
+			
+			/*连续移动*/
+			var animateIsPointByAjax = function(param){
+				
+				var self = this;
+				
+				this.constructor = function(param){
+					
+					for(var name in param){
+						
+						this[name] && (this[name] = param[name])  
+						
+					}
+					
+				}
+				
+				this.stop = function(){
+					
+					this.animateIsPoint && this.animateIsPoint.Interval.clear();
+					
+				}
+				
+				this.animateParam = {};
+				
+				this.layer = undefined;
+				
+				this.getLayer = function(){
+					
+					var layer = this.layer;
+					
+					if(!layer){
+						
+						layer = new esri.layers.GraphicsLayer();
+						map.addLayer(layer);
+						this.layer = layer;
+					}
+
+					return layer;
+					
+				}
+				
+				//路径点
+				var SimpleMarkerSymbol = esri.symbol.SimpleMarkerSymbol;
+				this.pointSymbol = new SimpleMarkerSymbol(SimpleMarkerSymbol.STYLE_CIRCLE,10,null,new esri.Color("red"));  /*路径点*/
+				
+				/*是否正在动画中*/
+				this.isAnimate = false;
+				
+				/*初始点 点类型*/
+				this.intoPoint = undefined;
+				
+				//添加初始点
+				this.addIntoPoint = function(e){
+					
+					this.intoPoint = e;
+					
+				};
+				
+				/*添加点*/
+				this.add = function(e){ 
+					
+					//添加点
+					this.pointData.push(e)
+					
+					//如果没有在动画中则运行动画
+					!this.isAnimate && ( this.start() );
+					
+				};
+				
+				/*速度  单位是标准公里单位(其实我也不清楚 大概就是个概念值)*/
+				this.speed = 0.05;
+				
+				/*通过ajax直接绑定来运行程序*/
+				this.ajax = function(){};
+				
+				/*最终保存路径的数组*/
+				this.pointData = new Array;
+				
+				/*获取第一个点并删除掉原来的位置*/
+				this.getPointData = function(){ return this.pointData.splice(0,1)[0]; }
+				
+				/*开始执行*/
+				this.start = (key = function(){
+					
+					self.isAnimate = true;
+					
+					var pointData = self.pointData,
+						intoPoint = self.intoPoint;
+					
+					//当数据不为空的时候
+					if(pointData.length < 1 || !intoPoint ) return self.isAnimate = false;
+					
+					//创建参数
+					var _param = self.animateParam;
+					
+					_param.point = intoPoint;  //起始点
+					_param.toPoint = self.getPointData(); //结束点
+		
+					_param.speed = geometryEngine.distance(intoPoint.geometry,new esri.geometry.Point(_param.toPoint)) / self.speed * 1000;
+					
+					_param.end = function(e){
+						//self.createPoint([e.geometry.x,e.geometry.y]);
+						key();
+					}
+					
+					self.animateIsPoint = animateIsPoint(_param); //使用动画
+				});
+				
+				/*创建路径点*/
+				this.createPoint = function(xy){
+					
+					var layer = this.getLayer();
+					var symbol = this.pointSymbol;
+					var XY = xy;
+					var point = esri.geometry.Point(XY,map.spatialReference);
+					var Graphic = esri.Graphic(point,symbol);
+					layer.add(Graphic);
+					
+				}
+				
+				this.stop = function(){
+					
+					this.pointData = [];
+	
+				}
+				
+				if(param) this.constructor(param);
+				
+				return this;
+				
+			}
+			
+			/*多个点移动*/
+			var animateIsPointByArray = function(param){
+			
+				var point,data,stopBack,callBack,completeBack,speed,frames,inter,after,timeArray,toPointArray,index
+				,lineSymbol,pointSymbol,layer,isLine,pointClick,setIndex,isBack,pointArray,lineArray,isHidePoint,isHideLine
+				;
+				
+				pointArray = [];  /*存放点*/
+				lineArray = [];   /*存放线*/
+				
+				var f = new Function;
+				
+				var constructor = function(param){
+					
+					point = param.point || point ;
+				
+					data = param.toPointArray || data ;
+					
+					loadBack = param.load || loadBack || f;
+					
+					stopBack = param.stopBack || stopBack || f;
+					
+					callBack = param.callBack || callBack || f; 					/*每段完成回调*/
+					
+					completeBack = param.end || completeBack || f; 						/*全部完成回调*/
+					
+					eachFrame = param.eachFrame || eachFrame || f;                  /*每一帧完成回调*/
+					
+					afterAnimate = param.after || afterAnimate || f;     /*修改动画参数回调*/
+					
+					speed = param.speed || speed || 1000; 					/*一共耗时*/
+		
+					isLine = param.isLine || isLine ;
+
+					lineSymbol = param.lineSymbol || lineSymbol || undefined;    /*路径symbol*/
+				
+					pointSymbol = param.pointSymbol || pointSymbol || undefined;  /*路径点*/
+				
+					layer = param.layer || layer ; /*存放图形的默认Layer*/
+				
+					onCreatePointAndLine = param.onCreatePointAndLine || onCreatePointAndLine || f ; /*坐标点点击事件*/
+				}
+				
+				constructor(param);
+				
+				if( !layer ) { layer = new esri.layers.GraphicsLayer(); map.addLayer(layer); }; /*如果layer没有 则默认一个*/
+				
+				/*创建起点标识符 */
+				var createStartPoint = function(i){
+					
+					var img , xy ;
+					
+					if(i && i === "1"){
+						
+						img = "images/zhongdian.png";
+						xy = [data[data.length-1][0],data[data.length-1][1]];
+						
+					}else{
+						
+						img = "images/qidian.png"
+						xy = [point.geometry.x,point.geometry.y];
+					}
+				
+					var p = new esri.Graphic(
+					  new esri.geometry.Point(xy,{"wkid":point.geometry.spatialReference.wkid})
+					, new esri.symbol.PictureMarkerSymbol(img ,20,30));
+				
+					layer.add(p);
+					
+					return p;
+				};
+				/*创建起点*/
+				qidian = createStartPoint();
+				
+				/*创建终点*/
+				zhongdian = createStartPoint("1");
+
+				isBack = false;
+				
+				frames = speed / data.length ; 					/*帧数*/
+				
+				toPointArray = [];
+				
+				index = 0 ; 								   /*当前的运动点下标*/
+				
+				maxIndex = 0;								   /*历史最高index*/
+
+				
+
+				/*改变index的值*/
+				setIndex = function(a){ 						
+
+					if(!isNaN(a)) index = a;
+					if(a === "+") index ++;
+					if(a === "-") index --;
+					if(index > maxIndex) maxIndex = index;
+				}
+				
+				/*开始运行轨迹*/
+				var start = (function fn(){
+					
+					var s = this;
+					
+					loadBack.apply(s,[{index:index,point:point}]);
+					
+					if(isBack) {
+								
+						setIndex("-");
+						
+					}else{
+						
+						setIndex("+");
+						
+					}
+					
+					var _param = {
+						
+						point : point,
+						toPoint : [],
+						callBack : eachFrame,                   /*引用动画函数的每一帧回调事件*/
+						end : function(point , inter , _point , _line){ 						/*动画函数的完成事件*/
+		
+							if(isHidePoint) _point.hide();
+							if(isHideLine) _line.hide();
+						
+							if(_point) pointArray.push(_point);
+							if(_line) lineArray.push(_line);
+			
+							callBack({point:point,index:index});
+							if( index >= data.length-1){						
+								isBack = true;
+								isStop = true;
+								completeBack({index:index,layer:layer,point:point});					/*每段动画结束的回调事件*/
+								return;
+							}
+							if( index <= 0 ){		
+								isBack = false;
+								isStop = true;	
+								completeBack({index:index,layer:layer,point:point});					/*每段动画结束的回调事件*/
+								return;
+							}
+		
+							if(inter){
+								
+								inter.dispost(); 		/*清除计时器对象*/
+								
+							}
+							if(isStop){
+								
+								stopBack.apply(self,[{point:point,index:index}]);  /*暂停回调函数*/
+								
+								return ;
+								
+							}
+							
+							fn.apply(s); 
+						},
+						speed : frames,
+						onCreatePointAndLine : onCreatePointAndLine,
+						layer: layer,
+						isLine : function(){
+							
+							if(index < maxIndex){
+								
+								return false;
+								
+							}else{
+								
+								return true;
+								
+							}
+		
+						}()  ,                                   /*取消移动产生的线段*/    
+						isAngle : false                          /*取消角度动画*/
+					
+					}
+					
+					var item = data[index] ; 					/*定位执行的数据点*/
+					if(!item) {
+						if(index < 0){
+							index = 0;
+							item = data[index] ; 
+						}else if(index > data.length - 1){
+							index = data.length - 1;
+							item = data[index] ; 
+						}
+					}
+			
+					var after = afterAnimate({					/*在执行前进行回调调整*/
+						point : car ,
+						param : _param ,
+						frames : frames,
+					});
+
+					_param.speed = frames;
+					_param.toPoint = item;
+					
+					/*将回调的结果修改time参数*/
+					if(after){
+						
+						if(is.Json(after)) 
+							for(var key in after){
+								
+								_param[key] = after[key];
+								
+							}
+						
+					};
+					
+					inter = new animateIsPoint(_param);
+
+				})
+				
+				/*速度调节*/
+				var setSpeed = function(a){ if(!isNaN(a)) return frames = a; };
+				
+				var isStop = true;   /*暂停*/
+				
+				var isKeep = function(ind){
+				
+					if(ind)
+						index = ind;/*如果输入了下标点 则从输入的小标点开始*/
+					
+					if(isStop) /*如果是暂停状态*/
+					{
+						
+						isStop = false;
+						start();
+						
+					}
+						
+				};   /*继续*/
+				
+				/*前进*/
+				var going = function(){
+					
+					if(isBack) { setSpeed(1000); } 
+					
+					isBack = false;
+					if(frames <= 400) {setSpeed(1000);}
+					else{setSpeed(frames - 400);}	
+					
+					isKeep();
+				}
+				
+				/*后退*/
+				var backWards = function(){
+					
+					if(!isBack) { setSpeed(1000); } 
+					
+					isBack = true;
+					if(frames <= 400) {setSpeed(1000);}
+					else{setSpeed(frames - 400);}				
+					
+					isKeep();
+				}
+				
+				/*隐藏点*/
+				var hidePoint = function(){
+					
+					isHidePoint = true;
+					
+					for( var i = 0, len = pointArray.length ; i< len ; i ++ ){
+						
+						var item = pointArray[i];
+						
+						item.hide();
+						
+					}
+					
+				}
+				
+				var showPoint = function(){
+					
+					isHidePoint = false;
+					
+					for( var i = 0, len = pointArray.length ; i< len ; i ++ ){
+						
+						var item = pointArray[i];
+						
+						item.show();
+						
+					}
+					
+				}
+				
+				var hideLine = function(){
+					
+					isHideLine = true;
+		
+					for( var i = 0, len = lineArray.length ; i< len ; i ++ ){
+						
+						var item = lineArray[i];
+						
+						item.hide();
+						
+					}
+					
+				}
+				
+				var showLine = function(){
+					
+					isHideLine = false;
+					
+					for( var i = 0, len = lineArray.length ; i< len ; i ++ ){
+						
+						var item = lineArray[i];
+						
+						item.show();
+						
+					}
+					
+				}
+				
+				/*存放路径点的图层*/
+				var pathLayer = {
+					
+					spatialReference : {wkid: 102113},
+					
+					layer : function(){ return layer; },
+					
+					path : function(a,b){
+					
+						var symbol = lineSymbol;
+						
+						var line = new esri.geometry.Polyline({
+							"paths":[[a,b]],
+							"spatialReference":this.spatialReference
+						});
+
+						return new esri.Graphic( line , symbol );
+						
+					},
+					
+					point : function(a){
+					
+						var symbol = pointSymbol;
+					
+						var point = new esri.geometry.Point( a , this.spatialReference );
+					
+						return new esri.Graphic( point , symbol );
+						
+					},
+					
+					/*添加Graphic*/
+					add : function(Graphic){ 
+						
+						var layer = this.layer;
+						
+						if( is.Function( layer ) ) layer = layer(); else return ;
+						
+						if( !is.Esri( layer ) ) return ;
+						
+						if( !isLine ) Graphic.hide(); 
+											
+						layer.add( Graphic );
+						
+					}
+					
+				}
+				
+				var clear = function(){
+					
+					layer.clear();          /*清空图层*/
+					isStop = true; /*关闭计时器*/
+					
+				}
+				
+				
+				var CreateLine = function(){
+									
+					if( !isLine ) return ;
+					
+					var XY , _point , line ;
+					for( var i = 0 , len = data.length ; i < len ; i++ ){
+						
+						XY = data[i];
+						_point = pathLayer.point( XY );
+						_point.InfoData = XY[2];
+						line = pathLayer.path( [point.geometry.x,point.geometry.y] , XY );
+						line.InfoData = XY[2];
+						
+						var _onCreatePointAndLine = onCreatePointAndLine(_point,line,layer);
+						
+						if(!_onCreatePointAndLine && _onCreatePointAndLine !==undefined) continue ;
+						
+						layer.add(line);
+						layer.add(_point);
+						
+					}
+					
+
+				}();
+				
+				return {
+					
+					start : function(){ start.apply(this) },
+					stop : function(){ isStop = true; },
+					keep : isKeep,
+					setSpeed : setSpeed,
+					setPathByLayer : function(lay){ return layer = lay; },
+					getLayer : function(){
+						return layer; 
+					},
+					getIndex : function(){ return index; },
+					back : backWards,
+					going : going,
+					qidian : qidian,
+					zhongdian : zhongdian,
+					isBack : function(){ return isBack ;},
+					hideLine : hideLine,
+					hidePoint : hidePoint,
+					showLine : showLine,
+					showPoint : showPoint,
+					getPoint : function(){ return pointArray; },
+					getline : function(){ return lineArray; },
+					clear : function(){ return clear.apply(this); },
+					getInter : function(){ return inter; }
+					
+				};
+				
+			};
+	
+			/*移动方法 朝着某一个点移动*/
+			var animateIsPoint = function(param){
+
+				
+			
+				var car,XY,callBack,callBack,completeBack,speed,frame,frames,progressBar,progressBarAdd
+				,moveXY,handle,_Interval
+				,lineSymbol,pointSymbol,layer,isLine,LayerHide,_point,_line;
+				
+				var SimpleLineSymbol = esri.symbol.SimpleLineSymbol;
+				var SimpleMarkerSymbol = esri.symbol.SimpleMarkerSymbol;
+				var Color = esri.Color;
+				
+				var f = new Function;
+				
+				isAngle = param.isAngle ;
+				
+				if( isAngle !== false ){
+					
+					isAngle = true;
+					
+				}
+				
+				lineSymbol = param.lineSymbol || new SimpleLineSymbol(SimpleLineSymbol.STYLE_DASH,new Color([255,0,0]),3);    /*路径symbol*/
+				
+				pointSymbol = param.pointSymbol || new SimpleMarkerSymbol(SimpleMarkerSymbol.STYLE_CIRCLE,10,null,new Color("red"));  /*路径点*/
+				
+				layer = param.layer || null; /*存放图形的默认Layer*/
+				
+				isLine = param.isLine;   /*是否留下线段*/
+				
+				layerHide = param.layerHide || true; /*是否显示复层*/
+				
+				if( !layerHide && layer ) layer.hide();
+				
+				car = param.point; /*移动的汽车单位*/
+				
+				XY = param.toPoint ; /*目的地点*/
+				
+				callBack = param.callBack || f ; /*每帧完成回调*/
+				
+				completeBack = param.end || f ; /*完成回调*/
+				
+				speed = param.speed || 1000; /*一共耗时*/
+				
+				onCreatePointAndLine = param.onCreatePointAndLine || f ; /*坐标点点击事件 （point移动的每个坐标点）*/
+			
+				if( !is.Array(XY) ) throw "car move XY Is error"; /*移动的点坐标错误*/
+				
+				if( car.geometry.x === XY[0] && car.geometry.y === XY[1] ) return completeBack(car,_Interval);
+				
+				if( !is.Esri(car) ) throw "car is not correct esri Object"; /*判断是否是属于正确的数据类型*/
+				
+				frame = param.frame || 60; /*每秒帧数*/
+				
+				frames = speed / 1000 * frame; /*总帧数*/
+				
+				progressBar = 1; /*运行的帧数*/
+				
+				progressBarAdd = function(){ 
+					if(progressBar >= frames) {
+						
+						_Interval.clear();
+						completeBack(car,_Interval,_point,_line);
+						
+					}
+					progressBar ++;
+				};
+				
+				moveXY = {
+					x : ( car.geometry.x - XY[0] ) / frames ,
+					y : ( car.geometry.y - XY[1] ) / frames 
+				};
+
+				/*改变其方向*/
+				var change = function(car,px,py){
+					
+					if(!isAngle) return;
+					var mx = px;
+					var my = py;
+					px = car.geometry.x;
+					py = car.geometry.y;
+					var x = Math.abs(px-mx);
+					var y = Math.abs(py-my);
+					var z = Math.sqrt(Math.pow(x,2)+Math.pow(y,2));
+					var cos = y/z;
+					var radina = Math.acos(cos);//用反三角函数求弧度
+					var angle = Math.floor(180/(Math.PI/radina));//将弧度转换成角度
+					if(mx>px&&my>py){//鼠标在第四象限
+						angle = angle;}
+					if(mx==px&&my<py){//鼠标在y轴负方向上
+						angle = 180;}
+					if(mx>px&&my==py){//鼠标在x轴正方向上
+						angle = 90;}
+					if(mx<px&&my>py){//鼠标在第三象限
+						angle = 360 - angle;}
+					if(mx<px&&my==py){//鼠标在x轴负方向
+						angle = 270;}
+					if(mx<px&&my<py){//鼠标在第二象限
+						angle = 180 + angle;}
+					if(mx>px&&my<py){
+						angle = 180 - angle;}
+
+					car.symbol.setAngle(angle === NaN ? 0 : angle);
+				
+				};
+				
+				change(car,XY[0],XY[1]);
+				
+				/*改变car的xy属性*/
+				handle = function(){
+					var _x = car.geometry.x - moveXY.x;
+					var _y = car.geometry.y - moveXY.y;
+					var _s = car.geometry.spatialReference;
+					var _angle = car.symbol.angle;
+					
+					var geo = new esri.geometry.Point([_x,_y],{wkid:_s.wkid});
+					
+					car.geometry.clearCache(); /*清除掉上一个点*/
+
+					car.setGeometry(geo);
+					car.symbol.setAngle(_angle);
+					
+
+					progressBarAdd();
+					callBack({point:car,Interval:_Interval});
+				}
+				
+				_Interval = new Interval(handle,speed / frames);
+				
+				/*存放路径点的图层*/
+				var pathLayer = {
+					
+					spatialReference : {wkid: 102113},
+					
+					layer : function(){ return layer; },
+					
+					path : function(a,b){
+					
+						var symbol = lineSymbol;
+						
+						var line = new esri.geometry.Polyline({
+							"paths":[[a,b]],
+							"spatialReference":this.spatialReference
+						});
+
+						return new esri.Graphic( line , symbol );
+						
+					},
+					
+					point : function(a){
+					
+						var symbol = pointSymbol;
+					
+						var point = new esri.geometry.Point( a , this.spatialReference );
+					
+						return new esri.Graphic( point , symbol );
+						
+					},
+					
+					/*添加Graphic*/
+					add : function(Graphic){ 
+						
+						var layer = this.layer;
+						
+						if( is.Function( layer ) ) layer = layer(); else return ;
+						
+						if( !is.Esri( layer ) ) return ;
+						
+						if( !isLine )  return ; 
+						
+						layer.add( Graphic );
+						
+					}
+					
+				}
+				
+				var createPointAndLine = (function(){
+					
+					if(!layer) return;
+					
+					_point = pathLayer.point( XY );
+					_point.InfoData = XY[2];
+					_line = pathLayer.path( [car.geometry.x,car.geometry.y] , XY );
+					_line.InfoData = XY[2];
+					
+					var _onCreatePointAndLine = onCreatePointAndLine(_point,_line,layer);
+					
+					if(!_onCreatePointAndLine && _onCreatePointAndLine !==undefined) return ;
+					
+					pathLayer.add(_line);
+					pathLayer.add(_point);
+					
+				})();
+				
+				
+				
+			
+				return {
+					Interval:_Interval,
+				};
+				
+			};
+	
+			var is = {
+				Array : function(obj){
+
+					return ( typeof obj === "object" && obj instanceof Array );
+
+				},
+
+				Json : function(obj){
+
+					return ( typeof obj === "object"  && obj instanceof Object && obj.toString() === "[object Object]" );
+
+				},
+
+				Function : function(obj){
+
+					return ( typeof obj === "function"  && obj instanceof Function && obj.toString().indexOf("function")>-1 );
+
+				},
+
+				/*是否是地图对象*/
+				Esri : function(obj,name){
+
+					return obj.declaredClass && (!name || obj.declaredClass.toLowerCase() == name.toLowerCase() || obj.substring(obj.declaredClass.lastIndexOf("."),obj.length).toLowerCase() == name.toLowerCase()) && this.Json(obj);
+
+				}
+			}
+	
+			return {
+			
+				name : "animate",
+				animateIsPoint: function(param){ return new animateIsPoint(param); },
+				animateIsPointByArray : function(param){ return new animateIsPointByArray(param); },
+				animateIsPointByAjax : function(param){ return new animateIsPointByAjax(param); },
+				getMap : function(){ return map; },
+				setMap : function(m){ map = m; }
+				
+			};
+	
+		}();
+
+	}
+)
