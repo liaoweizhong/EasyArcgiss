@@ -1,0 +1,105 @@
+LwzMap && LwzMap.plugins.add("create",function(){
+	
+	this.name = "create";
+	
+	var map = undefined;
+	
+	var Graphic = {
+		
+		point : {
+			
+			redPoint : function(){ 
+				var SimpleMarkerSymbol = esri.symbol.SimpleMarkerSymbol;
+				return new SimpleMarkerSymbol(SimpleMarkerSymbol.STYLE_CIRCLE,10,null,new esri.Color("red")); 
+			},
+			
+			imgPoint : function(img){
+				var PictureMarkerSymbol = esri.symbol.PictureMarkerSymbol;
+				return new PictureMarkerSymbol(img,24,24);	
+			}
+
+		}
+		
+	}
+	
+	require(["esri/geometry/Circle"],function(){});
+	
+	/*获取Map*/
+	this.getMap = function(){ return map; };
+	
+	this.setMap = function(m){ map = m };
+	
+	/*创建点*/
+	this.createPoint = function(param){
+		
+		var xy,symbol,img,point,gra,layer;
+		
+		xy = param.xy || [param.x , param.y];
+		
+		layer = param.layer;
+		
+		img = param.img;
+		
+		if(img) {
+			
+			symbol = Graphic.point["imgPoint"](img);
+			
+		}else{
+			
+			symbol = param.symbol || Graphic.point[ param.symbolType || "redPoint"]();
+		
+		}
+		
+		point = new esri.geometry.Point(xy,map.spatialReference);
+		
+		gra = new esri.Graphic(point,symbol);
+		
+		layer && layer.add(gra);
+			
+		return gra;
+		
+	}
+	
+	/*创建新的layer*/
+	this.createLayer = function(param){
+		
+		var p = param || {};
+		
+		var type = p.type;
+		
+		var layer = new esri.layers[type || "GraphicsLayer"]();
+		
+		map.addLayer(layer);
+		
+		return layer;
+		
+	}
+	
+	/*创建圆*/
+	this.createCircle = function(param){
+
+		var SimpleFillSymbol = esri.symbol.SimpleFillSymbol;
+		var param = param || {};
+		var point = param.point;
+		var centerPoint = new esri.geometry.Point( point , map.spatialReference );
+		var _radius = param.radius || 3000 ;
+		var _radiusUnit = param.radiusUnit;
+		var color = param.color || [0,0,255,0.25];
+		var layer = param.layer;
+		var symbol = param.symbol || new esri.symbol.SimpleFillSymbol(SimpleFillSymbol.STYLE_SOLID,null,new esri.Color(color));
+
+		var circle = new esri.geometry.Circle(centerPoint,{
+			"radius": _radius,
+			"radiusUnit": _radiusUnit
+		})
+		
+		var circleGraphic = new esri.Graphic(circle,symbol);
+		
+		layer && layer.add(circleGraphic);
+
+		return circleGraphic;
+
+	};
+	
+	
+})
