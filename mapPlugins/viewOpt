@@ -1,0 +1,52 @@
+LwzMap && LwzMap.plugins.add("viewOpt",function(){
+	
+	this.name = "viewOpt";
+	
+	var self = this;
+
+	var map = undefined;
+
+	this.getMap = function(){ return map; };
+	
+	this.setMap = function(m){ map = m };
+	
+	//关于镜头的高低
+	this.mapLevel = function(index){
+		
+		if(index == "max" ) { map.setLevel(map.getMaxZoom()); }
+		
+		if( index == "min" ){ map.setLevel(map.getMinZoom()); }
+		
+		map.setLevel(index);
+		
+	}
+	
+	//关于镜头定位到某个点
+	this.centerPoint = function(param){
+		
+		var param = param || {};
+		
+		var xy = param.point,
+			f = param.after,
+			level = param.level;
+		
+		var x = xy[0];
+		var y = xy[1];
+		
+		var point = new esri.geometry.Point(xy,map.spatialReference);
+
+		if(level) this.mapLevel(level);
+		else map.centerAt(point);
+		var key = map.on("extent-change",function(){
+			
+			map.centerAt(point);
+			
+			f && f.apply(this);
+			
+			key.remove();
+			
+		});
+		
+	}
+	
+});
