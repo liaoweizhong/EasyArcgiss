@@ -1,0 +1,99 @@
+LwzMap && LwzMap.plugins.add("baiduPosition",function(){
+
+	/*请在页面上引入百度api
+	<script type="text/javascript" src="http://api.map.baidu.com/api?v=2.0&ak=6yAoynmTPNlTBa8z1X4LfwGE"></script>  
+	<script type="text/javascript" src="http://developer.baidu.com/map/jsdemo/demo/convertor.js"></script>  
+	*/
+
+	var self = this;
+
+	this.name = "baiduPosition";
+	
+	var map = undefined;
+
+	this.getMap = function(){ return map; };
+	
+	this.setMap = function(m){ map = m };
+	
+	this.into = function(){
+		
+	}
+
+	this.position = new function(func){
+		var self = this;
+		
+		this.isReady = function(){
+			
+			return !!BMap.Geolocation;
+			
+		}
+		
+		this.into = function(){
+			
+			if(!this.isReady) return;
+			
+			var geolocation = new BMap.Geolocation();  
+   			geolocation.getCurrentPosition(function (r) {  
+       			if (this.getStatus() == BMAP_STATUS_SUCCESS) {  
+           			var mk = new BMap.Marker(r.point);  
+	           		currentLat = r.point.lat;  
+	           		currentLon = r.point.lng;  
+	           		//alert(currentLat + "    " + currentLon);
+
+           			self._done.run(self,{longitude:currentLon,latitude:currentLat,});
+   		
+              		var pt = new BMap.Point(currentLon, currentLat);  
+              		var geoc = new BMap.Geocoder();  
+              		geoc.getLocation(pt, function (rs) {  
+              			var ob = {};
+                		var addComp = rs.addressComponents;  
+             
+                		ob.city = addComp.city;  
+                		ob.addComp = rs.addressComponents;  
+                		ob.texts = addComp.district + "-" + addComp.street + "-" + addComp.streetNumber;  
+                		//获取地理位置成功，跳转  
+						self._getLocation.run(this,[ob]);
+      				})
+       			}	
+			});
+		};
+
+		this.done = function(func){
+			this._done.add(func);
+		};
+
+		this._done = {
+			
+			add : function(f){ this.val.push(f); },
+			val : [],
+			run : function(self,arg){
+				var d = this.val;
+				for(var i in d){
+					typeof d[i] === "function" && d[i].apply(self,arg);
+				}
+			}
+			
+		}
+
+		this.getLocation = function(func){
+			this._getLocation.add(func);
+		};
+
+		this._getLocation = {
+			
+			add : function(f){ this.val.push(f); },
+			val : [],
+			run : function(self,arg){
+				var d = this.val;
+				for(var i in d){
+					typeof d[i] === "function" && d[i].apply(self,arg);
+				}
+			}
+			
+		}
+
+		return this;
+ 	
+ 	}();
+	
+});
