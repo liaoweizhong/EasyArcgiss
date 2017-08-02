@@ -1,0 +1,295 @@
+(function(w,load,map){
+
+	//配置文件
+	w.CONFIG = {
+
+		initJS : "http://121.32.129.19:81/arcgis_js_api/init.js",
+		initCSS : "http://121.32.129.19:81/esri/css/esri.css",
+		//默认地图base
+		mapBaseDefault : "http://183.62.243.20:8002/arcgis/rest/services/GDDLG/MapServer",
+		//默认打开地图时的Extend
+		mapExtendDefault : {
+			"xmin": 111.60775685804073,
+			"ymin": 22.82862876884291,
+			"xmax": 115.56283498304073,
+			"ymax": 24.83363365165541,
+			"spatialReference": {
+				"wkid": 4490
+			}
+		},
+		
+		plugin : {
+			
+			path : "mapPlugins",
+			name : ["create","baiduPosition","viewOpt"],
+			
+		},
+	}
+
+	/*导入引用数据*/
+	var _i = new load();
+	var Map = null;
+	w.LwzMap = Map = new map();
+	
+	_i.into();
+	_i.done(function(){	
+		Map.into();
+	});
+	
+	Map.loadMap(function(){
+		
+		w.map = this;
+		
+	})
+	
+	
+	
+}(
+window,
+function(){
+
+	var self = this;
+
+	this.js  = CONFIG.initJS;
+	this.css = CONFIG.initCSS;
+	
+	/*开始导入引用数据*/
+	this.into = function(){
+		
+		var pluginName = CONFIG.plugin.name;
+		
+		var pluginPath = CONFIG.plugin.path;
+		
+		this.loadLndex = pluginName.length + 2;
+		
+		this.load(this.js,function(){
+
+			self.intoAfter.apply(self);
+			
+		});
+		
+		this.load(this.css,function(){
+			
+			self.intoAfter.apply(self);
+			
+		});
+		
+		for( var i in pluginName ){
+			
+			this.load(pluginPath + "/" + pluginName[i] + ".js",function(){
+
+				self.intoAfter.apply(self);
+				
+			});
+			
+		}
+
+	}
+	
+	this.intoAfter = function(){
+		
+		
+		if( --this.loadLndex === 0 ){
+
+			this._done.run(this,arguments);
+			
+		}
+				
+	}
+	
+	/*导入完成后执行*/
+	this.done = function(f){
+		
+		this._done.add(f);
+		
+	}
+	
+	this._done = {
+		
+		add : function(f){ this.val.push(f); },
+		val : [],
+		run : function(self,arg){
+			
+			var d = this.val;
+			
+			for(var i in d){
+				
+				typeof d[i] === "function" && d[i].apply(self,arguments);
+				
+			}
+			
+		}
+		
+	};
+	
+	this.load = function(url,callback){
+			
+		var callback = callback || new Function;
+			
+		var script;
+			
+		if(url.match(/.css$/)){
+			
+			var head = document.getElementsByTagName('HEAD');
+			var script = document.createElement('link');
+			script.href = url;
+			script.rel = 'stylesheet';
+			script.type = 'text/css';
+			
+		}else{
+			
+			script = document.createElement("script");
+		
+			script.url = url;
+			
+			script.type = "text/javascript"; 
+			
+			script.src = url;
+		
+		};
+			
+		
+		if (script.readyState){ //IE 
+			script.onreadystatechange = function(event){ 
+	
+				if (script.readyState == "loaded" || 
+					script.readyState == "complete"){ 
+						script.onreadystatechange = null; 
+						callback(url);
+					} 
+			}; 
+		} else { //Others: Firefox, Safari, Chrome, and Opera 
+			script.onload = function(event){ 
+	
+				callback(url);
+				
+			}; 
+		} 
+		
+		document.head.appendChild(script); 
+
+	} 
+	
+},
+
+/*初始化地图*/
+function(){
+	
+	var self = this;
+		
+	/*地图对象*/
+	this.map = function(MAP){
+		
+		/*添加插件*/
+		MAP.plugin = [];
+		var plugin = self.plugins; //获取插件数据
+		var name;
+		MAP.setPlugin = function(p){
+			var _p = new p();
+			 _p.setMap && _p.setMap(this);
+			 _p.into && _p.into();
+			this[_p.name] = _p;
+		}
+		plugin.each(function(a,b){
+			MAP.setPlugin(b);
+		});
+
+		return MAP;
+	} 
+	
+	/*插件管理*/
+	this.plugins = {
+		
+		/*添加入口*/
+		add : function(name,plugin){
+			
+			this.data[name] = plugin;
+			
+		},
+		
+		get : function(){
+			
+			return this.data;
+			
+		},
+		
+		/*插件保存*/
+		data : {},
+		
+		each : function(f){
+			
+			var dat = this.data;
+			
+			for( var i in dat ){
+				
+				f.apply(this,[i,dat[i],dat]);
+				
+			}
+			
+		}
+	}
+	
+	/*初始化地图*/
+	this.into = function(){
+						
+		var MAP;
+				
+		require(["esri/map", "esri/layers/ArcGISTiledMapServiceLayer", "esri/geometry/Point", "esri/geometry/Extent", "esri/geometry/geometryEngine"],
+			function(Map, ArcGISTiledMapServiceLayer, Point, Extent,geometryEngine) {
+
+				MAP = new Map("map", {
+					logo: false,
+					sliderPosition: "bottom-right",
+					zoom: 8
+				});
+
+				var baseLayer = new ArcGISTiledMapServiceLayer(CONFIG.mapBaseDefault);
+				MAP.addLayer(baseLayer);
+				MAP.on("load", function(event) {
+					
+					/*如果默认范围存在则显示默认范围*/
+					if(CONFIG.mapExtendDefault){ 
+						var extent = new Extent(CONFIG.mapExtendDefault);
+						this.setExtent(extent);}
+					
+					/*运行地图加载成功事件*/
+					self._loadMap.run(this,[event]);
+					
+				});
+				
+				self.MAP = new self.map(MAP);
+			}
+		);
+		
+		
+		
+	}
+	
+	/*地图初始化成功*/
+	this.loadMap = function(f,arg){
+
+		this._loadMap.add(f);
+		
+	}
+	
+	this._loadMap = {
+		
+		add : function(f){ this.val.push(f); },
+		val : [],
+		run : function(self,arg){
+			
+			var d = this.val;
+			
+			for(var i in d){
+				
+				typeof d[i] === "function" && d[i].apply(self,arguments);
+				
+			}
+			
+		}
+		
+	}
+	
+	
+}
+))
