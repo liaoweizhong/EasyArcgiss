@@ -47,3 +47,17 @@ viewOpt /*视图操作类*/
     level 地图高度
   --例如  
     map.centerPoint({point:[113.25488938054087,23.94541085782746],level:10}）
+    
+    
+    
+animate /*点的动画类*/
+  animateIsPoint(param) 移动动画
+  --参数
+    isAngle 是否根据移动方向调整角度 默认true
+    point 移动的点坐标（Graphic类型）
+    toPoint 移动台的目的地坐标 [x,y]
+    callBack 每一帧回调 Function
+    end 动画结束回调 Function
+    speed 一共耗时 默认1S（1000）
+    frame 每秒帧数 默认60 
+    
