@@ -1,0 +1,49 @@
+create /*创建类*/
+    createPoint(param) 创建点
+    --参数 
+      xy 坐标 [x,y]
+      layer 如果有图层参数，则自动添加进入
+      img 样式图片 如果没有默认红点
+    --例子 map.create.createPoint({xy: [113.25488938054087,23.94541085782746]});
+
+    createCircle(param) 创建圆
+    --参数
+      point 坐标点 [x,y]
+      radius 半径 （默认值 3000）
+      radiusUnit 单位 （默认米）
+      symbol 样式 （默认蓝色底图）
+      color 颜色 （只有在默认地图有效）
+    --例子 map.create.createCircle({point: [113.25488938054087,23.94541085782746]});
+
+
+
+
+baiduPosition /*百度定位类*/
+  position 定位方法
+  --属性
+     into 开始定位
+     isReady 判断引用是否加载成功
+     done 定位后执行回调  （this.done(function(){ /*回调事件*/ })）
+     getLocation 获取定位的详细信息回调 （this.getLocation(function(){ /*回调事件*/ })）
+  --例子
+   this.baiduPosition.position.done(function(){});		
+   this.baiduPosition.position.getLocation(function(){});
+   this.baiduPosition.position.into();
+
+
+
+
+viewOpt /*视图操作类*/
+  mapLevel(index) 视角高度控制
+  --参数
+    index  高度   
+  --例如 
+    mapLevel(10)  mapLevel("max") mapLevel("min");
+
+  centerPoint(param) 锁定视角到某个点
+  --参数
+    point 坐标 [x,y]
+    after 地图动画之后执行回调
+    level 地图高度
+  --例如  
+    map.centerPoint({point:[113.25488938054087,23.94541085782746],level:10}）
